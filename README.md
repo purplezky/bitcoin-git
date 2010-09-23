@@ -1,3 +1,4 @@
-Bitcoin subversion clone
+listtransactions feature
 ========================
-This branch is a clone of the subversion tree, kept up-to-date via 'git svn fetch'.
+This is a slightly-modified version of jgarzik's 'listtransactions' patch.
+

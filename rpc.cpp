@@ -1391,7 +1391,8 @@ int CommandLineRPC(int argc, char *argv[])
         if (strMethod == "setgenerate"            && n > 1) ConvertTo<boost::int64_t>(params[1]);
         if (strMethod == "sendtoaddress"          && n > 1) ConvertTo<double>(params[1]);
         if (strMethod == "listtransactions"       && n > 0) ConvertTo<boost::int64_t>(params[0]);
-        if (strMethod == "listtransactions"       && n > 1) ConvertTo<bool>(params[1]);
+        if (strMethod == "listtransactions"       && n > 1) ConvertTo<boost::int64_t>(params[1]);
+        if (strMethod == "listtransactions"       && n > 2) ConvertTo<bool>(params[2]);
         if (strMethod == "getamountreceived"      && n > 1) ConvertTo<boost::int64_t>(params[1]); // deprecated
         if (strMethod == "getreceivedbyaddress"   && n > 1) ConvertTo<boost::int64_t>(params[1]);
         if (strMethod == "getreceivedbylabel"     && n > 1) ConvertTo<boost::int64_t>(params[1]);

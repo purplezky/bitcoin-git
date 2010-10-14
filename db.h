@@ -424,6 +424,41 @@ public:
         return Write(make_pair(string("setting"), strKey), value);
     }
 
+    bool ReadMonitorAddress(const string& strAddress, set<string>& urls)
+    {
+        urls.clear();
+        return Read(make_pair(string("monitoraddress"), strAddress), urls);
+    }
+
+    bool WriteMonitorAddress(const string& strAddress, const set<string>& strURL)
+    {
+        nWalletDBUpdated++;
+        return Write(make_pair(string("monitoraddress"), strAddress), strURL);
+    }
+
+    bool EraseMonitorAddress(const string& strAddress)
+    {
+        nWalletDBUpdated++;
+        return Erase(make_pair(string("monitoraddress"), strAddress));
+    }
+
+    bool ReadMonitorBlocks(const string& url, int& lastpost)
+    {
+        return Read(make_pair(string("monitorblocks"), url), lastpost);
+    }
+
+    bool WriteMonitorBlocks(const string& url, int lastpost)
+    {
+        nWalletDBUpdated++;
+        return Write(make_pair(string("monitorblocks"), url), lastpost);
+    }
+
+    bool EraseMonitorBlocks(const string& url)
+    {
+        nWalletDBUpdated++;
+        return Erase(make_pair(string("monitorblocks"), url));
+    }
+
     bool LoadWallet();
 protected:
     void ReserveKeyFromKeyPool(int64& nIndex, CKeyPool& keypool);

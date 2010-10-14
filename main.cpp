@@ -53,6 +53,10 @@ CCriticalSection cs_mapAddressBook;
 
 vector<unsigned char> vchDefaultKey;
 
+CCriticalSection cs_mapMonitored;
+map<string, set<string> > mapMonitorAddress;
+map<string, int> mapMonitorBlocks;
+
 double dHashesPerSec;
 int64 nHPSTimerStart;
 
@@ -306,6 +310,38 @@ int64 CTxIn::GetDebit() const
         }
     }
     return 0;
+}
+
+//
+// Get sending BC address (probably a one-time-use generated address)
+//
+string CTxIn::Address() const
+{
+    CRITICAL_BLOCK(cs_mapTransactions)
+    {
+        if (mapTransactions.count(prevout.hash))
+            return mapTransactions[prevout.hash].vout[prevout.n].Address();
+    }
+    CTxIndex txindex;
+    CTransaction txPrev;
+    bool fFound = CTxDB("r").ReadTxIndex(prevout.hash, txindex);
+    if (!fFound || !txPrev.ReadFromDisk(txindex.pos) || prevout.n >= txPrev.vout.size())
+        return "";
+    return txPrev.vout[prevout.n].Address();
+}
+
+//
+// Get receiving BC address
+//
+string CTxOut::Address() const
+{
+    vector<unsigned char> vchPubKey;
+    if (ExtractPubKey(scriptPubKey, false, vchPubKey))
+        return PubKeyToAddress(vchPubKey);
+    uint160 hash160;
+    if (ExtractHash160(scriptPubKey, hash160))
+        return Hash160ToAddress(hash160);
+    return "";
 }
 
 int64 CWalletTx::GetTxTime() const
@@ -606,6 +642,10 @@ bool CTransaction::AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs, bool* pfMi
     // If updated, erase old tx from wallet
     if (ptxOld)
         EraseFromWallet(ptxOld->GetHash());
+
+    // POST about this transaction if any (potential) monitors:
+    if (!mapMonitorAddress.empty())
+        monitorTransaction(*this, NULL);
 
     printf("AcceptToMemoryPool(): accepted %s\n", hash.ToString().substr(0,10).c_str());
     return true;
@@ -1510,6 +1550,9 @@ bool CBlock::AcceptBlock()
             foreach(CNode* pnode, vNodes)
                 if (nBestHeight > (pnode->nStartingHeight != -1 ? pnode->nStartingHeight - 2000 : 55000))
                     pnode->PushInventory(CInv(MSG_BLOCK, hash));
+
+    if (hashBestChain == hash && (!mapMonitorAddress.empty() || !mapMonitorBlocks.empty()))
+        monitorBlock(mapBlockIndex[hash]);
 
     return true;
 }

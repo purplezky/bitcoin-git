@@ -47,6 +47,10 @@ extern vector<unsigned char> vchDefaultKey;
 extern double dHashesPerSec;
 extern int64 nHPSTimerStart;
 
+extern CCriticalSection cs_mapMonitored;
+extern map<string, set<string> > mapMonitorAddress; // mapMonitorAddress[address] = listof(urls)
+extern map<string, int> mapMonitorBlocks; // mapMonitorBlocks[url] = depth_of_last_successful_post
+
 // Settings
 extern int fGenerateBitcoins;
 extern int64 nTransactionFee;
@@ -284,6 +288,7 @@ public:
 
     bool IsMine() const;
     int64 GetDebit() const;
+    string Address() const;
 };
 
 
@@ -368,6 +373,8 @@ public:
     {
         printf("%s\n", ToString().c_str());
     }
+
+    string Address() const;
 };
 
 

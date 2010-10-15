@@ -782,9 +782,9 @@ Object txToJSON(const CTransaction& transaction, const CBlockIndex* blockindex)
         result.push_back(Pair("confirmations", 0));
 
     if (mapWallet.count(txhash))
-        result.push_back(Pair("time", mapWallet[txhash].GetTxTime()));
+        result.push_back(Pair("time", (boost::int64_t)mapWallet[txhash].GetTxTime()));
     else if (blockindex)
-        result.push_back(Pair("time", blockindex->GetMedianTime()));
+        result.push_back(Pair("time", (boost::int64_t)blockindex->GetMedianTime()));
 
     return result;
 }
@@ -796,8 +796,8 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex)
     result.push_back(Pair("blockcount", blockindex->nHeight));
     result.push_back(Pair("version", block.nVersion));
     result.push_back(Pair("merkleroot", block.hashMerkleRoot.GetHex()));
-    result.push_back(Pair("time", block.GetBlockTime()));
-    result.push_back(Pair("nonce", (uint64)block.nNonce));
+    result.push_back(Pair("time", (boost::int64_t)block.GetBlockTime()));
+    result.push_back(Pair("nonce", (boost::uint64_t)block.nNonce));
     Array txhashes;
     foreach (const CTransaction&tx, block.vtx)
         txhashes.push_back(tx.GetHash().GetHex());

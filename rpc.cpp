@@ -162,15 +162,15 @@ Value getconnectioncount(const Array& params, bool fHelp)
 }
 
 
-double GetDifficulty()
+double GetDifficulty(const CBlockIndex* blockindex = pindexBest)
 {
     // Floating point number that is a multiple of the minimum difficulty,
     // minimum difficulty = 1.0.
-    if (pindexBest == NULL)
+    if (blockindex == NULL)
         return 1.0;
     int nShift = 256 - 32 - 31; // to fit in a uint
     double dMinimum = (CBigNum().SetCompact(bnProofOfWorkLimit.GetCompact()) >> nShift).getuint();
-    double dCurrently = (CBigNum().SetCompact(pindexBest->nBits) >> nShift).getuint();
+    double dCurrently = (CBigNum().SetCompact(blockindex->nBits) >> nShift).getuint();
     return dMinimum / dCurrently;
 }
 
@@ -798,6 +798,7 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex)
     result.push_back(Pair("merkleroot", block.hashMerkleRoot.GetHex()));
     result.push_back(Pair("time", (boost::int64_t)block.GetBlockTime()));
     result.push_back(Pair("nonce", (boost::uint64_t)block.nNonce));
+    result.push_back(Pair("difficulty", GetDifficulty(blockindex)));
     Array txhashes;
     foreach (const CTransaction&tx, block.vtx)
         txhashes.push_back(tx.GetHash().GetHex());

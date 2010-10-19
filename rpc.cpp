@@ -1639,8 +1639,8 @@ public:
         using namespace boost::xpressive;
         // This regex is wrong for IPv6 urls; see http://www.ietf.org/rfc/rfc2732.txt
         //  (they're weird; e.g  "http://[::FFFF:129.144.52.38]:80/index.html" )
-        // I can live with non-IPv6 urls for now...
-        static sregex url_regex = sregex::compile("^(http)://([^:/]+)(:[0-9]{1,5})?(.*)$");
+        // I can live with non-raw-IPv6 urls for now...
+        static sregex url_regex = sregex::compile("^(http|https)://([^:/]+)(:[0-9]{1,5})?(.*)$");
 
         boost::xpressive::smatch urlparts;
         if (!regex_match(url, urlparts, url_regex))
@@ -1651,14 +1651,34 @@ public:
         string protocol = urlparts[1];
         string host = urlparts[2];
         string s_port = urlparts[3];  // Note: includes colon, e.g. ":8080"
-        int port = (protocol == "http" ? 80 : 443);
+        bool fSSL = (protocol == "https" ? true : false);
+        int port = (fSSL ? 443 : 80);
         if (s_port.size() > 1) { port = atoi(s_port.c_str()+1); }
         string path = urlparts[4];
         map<string, string> headers;
 
-        printf("HTTPPOST to %s:%d%s  %s\n", host.c_str(), port, path.c_str(), body.c_str());
-        // TODO: support SSL/port 443...
+        printf("POST to %s:%d%s  %s\n", host.c_str(), port, path.c_str(), body.c_str());
+
+#ifdef USE_SSL
+        asio::io_service io_service;
+        ssl::context context(io_service, ssl::context::sslv23);
+        context.set_options(ssl::context::no_sslv2);
+        SSLStream sslStream(io_service, context);
+        SSLIOStreamDevice d(sslStream, fSSL);
+        iostreams::stream<SSLIOStreamDevice> stream(d);
+        if (!d.connect(host, lexical_cast<string>(port)))
+        {
+            printf("Couldn't connect to %s:%d", host.c_str(), port);
+            return false;
+        }
+#else
+        if (fUseSSL)
+        {
+            printf("Cannot POST to SSL server, bitcoin compiled without full openssl libraries.");
+            return false;
+        }
         ip::tcp::iostream stream(host, lexical_cast<string>(port));
+#endif
 
         stream << HTTPPost(host, path, body, headers) << std::flush;
         map<string, string> mapResponseHeaders;
@@ -1754,7 +1774,7 @@ void monitorTransactionsInBlock(const CBlock& block, const CBlockIndex* pblockin
 
 void monitorBlock(const CBlockIndex* pblockindex)
 {
-    // Starting 119 block back, notify monitoring URLs about
+    // Starting 119 blocks back, notify monitoring URLs about
     // transactions and blocks (at 120, 6, and 1 confirmations)
     int startDepth = max(0, nBestHeight-120+1);
     const CBlockIndex* pblockindexscan = pblockindex;
@@ -1772,6 +1792,11 @@ void monitorBlock(const CBlockIndex* pblockindex)
         CBlock block;
         block.ReadFromDisk(pblockindexscan, true);
 
+        Array params; // JSON-RPC requests are always "params" : [ ... ]
+        params.push_back(blockToJSON(block, pblockindexscan));
+
+        string postBody = JSONRPCRequest("monitorblock", params, Value());
+
         CRITICAL_BLOCK(cs_mapMonitored)
         CRITICAL_BLOCK(cs_vPOSTQueue)
         {
@@ -1779,14 +1804,7 @@ void monitorBlock(const CBlockIndex* pblockindex)
             {
                 if (item.second >= nHeight)
                     continue;
-
                 string url = item.first;
-
-                Array params; // JSON-RPC requests are always "params" : [ ... ]
-                params.push_back(blockToJSON(block, pblockindexscan));
-
-                string postBody = JSONRPCRequest("monitorblock", params, Value());
-
                 shared_ptr<CPOSTRequest> postRequest(new CMonitorBlockPOST(url, postBody, nHeight));
                 vPOSTQueue.push_back(postRequest);
             }

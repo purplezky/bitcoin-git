@@ -314,7 +314,7 @@ int64 CTxIn::GetDebit() const
 }
 
 //
-// Get sending BC address (probably a one-time-use generated address)
+// Get sending BC address
 //
 string CTxIn::Address() const
 {

@@ -9,7 +9,6 @@
 
 
 
-
 //////////////////////////////////////////////////////////////////////////////
 //
 // Shutdown
@@ -170,6 +169,7 @@ bool AppInit2(int argc, char* argv[])
             "  -gen=0           \t\t  " + _("Don't generate coins\n") +
             "  -min             \t\t  " + _("Start minimized\n") +
             "  -datadir=<dir>   \t\t  " + _("Specify data directory\n") +
+            "  -port=<port>     \t\t  " + _("Listen for connections on <port> (instead of 8333)\n") +
             "  -proxy=<ip:port> \t  "   + _("Connect through socks4 proxy\n") +
             "  -addnode=<ip>    \t  "   + _("Add a node to connect to\n") +
             "  -connect=<ip>    \t\t  " + _("Connect only to the specified node\n") +
@@ -239,10 +239,7 @@ bool AppInit2(int argc, char* argv[])
         return false;
     }
 
-    //
-    // Limit to single instance per user
-    // Required to protect the database files if we're going to keep deleting log.*
-    //
+
 #if defined(__WXMSW__) && defined(GUI)
     // todo: wxSingleInstanceChecker wasn't working on Linux, never deleted its lock file
     //  maybe should go by whether successfully bind port 8333 instead
@@ -281,9 +278,24 @@ bool AppInit2(int argc, char* argv[])
     }
 #endif
 
-    // Bind to the port early so we can tell if another instance is already running.
-    // This is a backup to wxSingleInstanceChecker, which doesn't work on Linux.
+    //
+    // Limit to single instance per DataDir
+    // Required to protect the database files if we're going to keep deleting log.*
+    //
     string strErrors;
+    string strDataDir = GetDataDir();
+    uint256 dirHash = Hash(strDataDir.begin(), strDataDir.end());
+    string name = string("bc_")+dirHash.GetHex();
+    static boost::interprocess::named_mutex mutex(boost::interprocess::open_or_create, name.c_str());
+    if (!mutex.try_lock())
+    {
+        strErrors = strprintf("Cannot obtain a lock on data directory %s.  Bitcoin is probably already running.", strDataDir.c_str());
+        wxMessageBox(strErrors, "Bitcoin");
+        return false;
+    }
+    // mutex will be unlocked when this process exits (and static object destructors are called).
+
+    // Bind to the port early so we can tell if another instance is already running on same port.
     if (!BindListenPort(strErrors))
     {
         wxMessageBox(strErrors, "Bitcoin");

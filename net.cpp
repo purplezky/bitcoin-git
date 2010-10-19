@@ -20,7 +20,7 @@ bool OpenNetworkConnection(const CAddress& addrConnect);
 //
 bool fClient = false;
 uint64 nLocalServices = (fClient ? 0 : NODE_NETWORK);
-CAddress addrLocalHost(0, DEFAULT_PORT, nLocalServices);
+CAddress addrLocalHost(0, 0, nLocalServices);
 CNode* pnodeLocalHost = NULL;
 uint64 nLocalHostNonce = 0;
 array<int, 10> vnThreadsRunning;
@@ -1178,7 +1178,10 @@ void ThreadMessageHandler2(void* parg)
 
 
 
-
+unsigned short GetLocalListenPort()
+{
+    return (mapArgs.count("-port") ? htons(atoi(mapArgs["-port"])) : DEFAULT_PORT);
+}
 
 
 bool BindListenPort(string& strError)
@@ -1236,7 +1239,7 @@ bool BindListenPort(string& strError)
     memset(&sockaddr, 0, sizeof(sockaddr));
     sockaddr.sin_family = AF_INET;
     sockaddr.sin_addr.s_addr = INADDR_ANY; // bind to all IPs on this computer
-    sockaddr.sin_port = DEFAULT_PORT;
+    sockaddr.sin_port = GetLocalListenPort();
     if (::bind(hListenSocket, (struct sockaddr*)&sockaddr, sizeof(sockaddr)) == SOCKET_ERROR)
     {
         int nErr = WSAGetLastError();
@@ -1278,7 +1281,7 @@ void StartNode(void* parg)
                 printf("host ip %d: %s\n", i, CAddress(*(unsigned int*)phostent->h_addr_list[i]).ToStringIP().c_str());
             for (int i = 0; phostent->h_addr_list[i] != NULL; i++)
             {
-                CAddress addr(*(unsigned int*)phostent->h_addr_list[i], DEFAULT_PORT, nLocalServices);
+                CAddress addr(*(unsigned int*)phostent->h_addr_list[i], GetLocalListenPort(), nLocalServices);
                 if (addr.IsValid() && addr.GetByte(3) != 127)
                 {
                     addrLocalHost = addr;
@@ -1306,7 +1309,7 @@ void StartNode(void* parg)
                     printf("ipv4 %s: %s\n", ifa->ifa_name, pszIP);
 
                 // Take the first IP that isn't loopback 127.x.x.x
-                CAddress addr(*(unsigned int*)&s4->sin_addr, DEFAULT_PORT, nLocalServices);
+                CAddress addr(*(unsigned int*)&s4->sin_addr, GetLocalListenPort(), nLocalServices);
                 if (addr.IsValid() && addr.GetByte(3) != 127)
                 {
                     addrLocalHost = addr;

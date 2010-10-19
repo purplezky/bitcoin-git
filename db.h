@@ -490,7 +490,8 @@ public:
 
     ~CReserveKey()
     {
-        ReturnKey();
+        if (!fShutdown)
+            ReturnKey();
     }
 
     vector<unsigned char> GetReservedKey()

@@ -239,10 +239,12 @@ bool AppInit2(int argc, char* argv[])
         return false;
     }
 
-
+    //
+    // Limit to single instance per user
+    // Required to protect the database files if we're going to keep deleting log.*
+    //
 #if defined(__WXMSW__) && defined(GUI)
-    // todo: wxSingleInstanceChecker wasn't working on Linux, never deleted its lock file
-    //  maybe should go by whether successfully bind port 8333 instead
+    // wxSingleInstanceChecker doesn't work on Linux
     wxString strMutexName = wxString("bitcoin_running.") + getenv("HOMEPATH");
     for (int i = 0; i < strMutexName.size(); i++)
         if (!isalnum(strMutexName[i]))
@@ -254,7 +256,6 @@ bool AppInit2(int argc, char* argv[])
         unsigned int nStart = GetTime();
         loop
         {
-            // TODO: find out how to do this in Linux, or replace with wxWidgets commands
             // Show the previous instance and exit
             HWND hwndPrev = FindWindowA("wxWindowClassNR", "Bitcoin");
             if (hwndPrev)
@@ -277,20 +278,20 @@ bool AppInit2(int argc, char* argv[])
         }
     }
 #endif
+
     // Make sure only a single bitcoin process is using the data directory.
-    string strErrors;
-    string strLockFile = GetDataDir()+"/.lock";
-    FILE *fp = fopen(strLockFile.c_str(), "a"); // empty lock file; created if it doesn't exist.
-    fclose(fp);
+    string strLockFile = GetDataDir() + "/.lock";
+    FILE* file = fopen(strLockFile.c_str(), "a"); // empty lock file; created if it doesn't exist.
+    fclose(file);
     static boost::interprocess::file_lock lock(strLockFile.c_str());
     if (!lock.try_lock())
     {
-        strErrors = strprintf("Cannot obtain a lock on data directory %s.  Bitcoin is probably already running.", GetDataDir().c_str());
-        wxMessageBox(strErrors, "Bitcoin");
+        wxMessageBox(strprintf(_("Cannot obtain a lock on data directory %s.  Bitcoin is probably already running."), GetDataDir().c_str()), "Bitcoin");
         return false;
     }
 
-    // Bind to the port early so we can tell if another instance is already running on same port.
+    // Bind to the port early so we can tell if another instance is already running.
+    string strErrors;
     if (!BindListenPort(strErrors))
     {
         wxMessageBox(strErrors, "Bitcoin");

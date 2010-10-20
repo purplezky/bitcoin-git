@@ -1006,7 +1006,7 @@ void ThreadOpenConnections2(void* parg)
 
                 // Randomize the order in a deterministic way, putting the standard port first
                 int64 nRandomizer = (uint64)(nStart * 4951 + addr.nLastTry * 9567851 + addr.ip * 7789) % (2 * 60 * 60);
-                if (addr.port != DEFAULT_PORT)
+                if (addr.port != GetDefaultPort())
                     nRandomizer += 2 * 60 * 60;
 
                 // Last seen  Base retry frequency
@@ -1180,7 +1180,7 @@ void ThreadMessageHandler2(void* parg)
 
 unsigned short GetListenPort()
 {
-    return (mapArgs.count("-port") ? htons(atoi(mapArgs["-port"])) : DEFAULT_PORT);
+    return (mapArgs.count("-port") ? htons(atoi(mapArgs["-port"])) : GetDefaultPort());
 }
 
 
@@ -1188,6 +1188,7 @@ bool BindListenPort(string& strError)
 {
     strError = "";
     int nOne = 1;
+    addrLocalHost.port = GetListenPort();
 
 #ifdef __WXMSW__
     // Initialize Windows Sockets
@@ -1244,7 +1245,7 @@ bool BindListenPort(string& strError)
     {
         int nErr = WSAGetLastError();
         if (nErr == WSAEADDRINUSE)
-            strError = strprintf("Unable to bind to port %d on this computer.  Bitcoin is probably already running.", ntohs(sockaddr.sin_port));
+            strError = strprintf(_("Unable to bind to port %d on this computer.  Bitcoin is probably already running."), ntohs(sockaddr.sin_port));
         else
             strError = strprintf("Error: Unable to bind to port %d on this computer (bind returned error %d)", ntohs(sockaddr.sin_port), nErr);
         printf("%s\n", strError.c_str());

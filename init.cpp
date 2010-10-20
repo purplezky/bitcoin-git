@@ -277,23 +277,18 @@ bool AppInit2(int argc, char* argv[])
         }
     }
 #endif
-
-    //
-    // Limit to single instance per DataDir
-    // Required to protect the database files if we're going to keep deleting log.*
-    //
+    // Make sure only a single bitcoin process is using the data directory.
     string strErrors;
-    string strDataDir = GetDataDir();
-    uint256 dirHash = Hash(strDataDir.begin(), strDataDir.end());
-    string name = string("bc_")+dirHash.GetHex();
-    static boost::interprocess::named_mutex mutex(boost::interprocess::open_or_create, name.c_str());
-    if (!mutex.try_lock())
+    string strLockFile = GetDataDir()+"/.lock";
+    FILE *fp = fopen(strLockFile.c_str(), "a"); // empty lock file; created if it doesn't exist.
+    fclose(fp);
+    static boost::interprocess::file_lock lock(strLockFile.c_str());
+    if (!lock.try_lock())
     {
-        strErrors = strprintf("Cannot obtain a lock on data directory %s.  Bitcoin is probably already running.", strDataDir.c_str());
+        strErrors = strprintf("Cannot obtain a lock on data directory %s.  Bitcoin is probably already running.", GetDataDir().c_str());
         wxMessageBox(strErrors, "Bitcoin");
         return false;
     }
-    // mutex will be unlocked when this process exits (and static object destructors are called).
 
     // Bind to the port early so we can tell if another instance is already running on same port.
     if (!BindListenPort(strErrors))

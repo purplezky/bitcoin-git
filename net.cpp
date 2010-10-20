@@ -1178,7 +1178,7 @@ void ThreadMessageHandler2(void* parg)
 
 
 
-unsigned short GetLocalListenPort()
+unsigned short GetListenPort()
 {
     return (mapArgs.count("-port") ? htons(atoi(mapArgs["-port"])) : DEFAULT_PORT);
 }
@@ -1239,7 +1239,7 @@ bool BindListenPort(string& strError)
     memset(&sockaddr, 0, sizeof(sockaddr));
     sockaddr.sin_family = AF_INET;
     sockaddr.sin_addr.s_addr = INADDR_ANY; // bind to all IPs on this computer
-    sockaddr.sin_port = GetLocalListenPort();
+    sockaddr.sin_port = GetListenPort();
     if (::bind(hListenSocket, (struct sockaddr*)&sockaddr, sizeof(sockaddr)) == SOCKET_ERROR)
     {
         int nErr = WSAGetLastError();
@@ -1281,7 +1281,7 @@ void StartNode(void* parg)
                 printf("host ip %d: %s\n", i, CAddress(*(unsigned int*)phostent->h_addr_list[i]).ToStringIP().c_str());
             for (int i = 0; phostent->h_addr_list[i] != NULL; i++)
             {
-                CAddress addr(*(unsigned int*)phostent->h_addr_list[i], GetLocalListenPort(), nLocalServices);
+                CAddress addr(*(unsigned int*)phostent->h_addr_list[i], GetListenPort(), nLocalServices);
                 if (addr.IsValid() && addr.GetByte(3) != 127)
                 {
                     addrLocalHost = addr;
@@ -1309,7 +1309,7 @@ void StartNode(void* parg)
                     printf("ipv4 %s: %s\n", ifa->ifa_name, pszIP);
 
                 // Take the first IP that isn't loopback 127.x.x.x
-                CAddress addr(*(unsigned int*)&s4->sin_addr, GetLocalListenPort(), nLocalServices);
+                CAddress addr(*(unsigned int*)&s4->sin_addr, GetListenPort(), nLocalServices);
                 if (addr.IsValid() && addr.GetByte(3) != 127)
                 {
                     addrLocalHost = addr;

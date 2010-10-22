@@ -919,19 +919,13 @@ Value gettransaction(const Array& params, bool fHelp)
     uint256 txhash;
     txhash.SetHex(params[0].get_str());
 
-    // Fetch transaction from memory and/or disk
+    // Fetch transaction from memory or disk
     CTransaction tx;
     CTxIndex txindex;
-    bool fOnDisk = CTxDB("r").ReadTxIndex(txhash, txindex);
-
-    if (mapTransactions.count(txhash))
-        tx = mapTransactions[txhash];
-    else if (fOnDisk)
-        if (!tx.ReadFromDisk(txindex.pos))
-            throw runtime_error("Transaction not found.");
-
     CBlockIndex *blockindex = NULL;
-    if (fOnDisk)
+
+    bool fOnDisk = CTxDB("r").ReadDiskTx(txhash, tx, txindex);
+    if (fOnDisk)  // Get blockindex to compute confirmations
     {
         CBlock blockTmp;
         if (blockTmp.ReadFromDisk(txindex.pos.nFile, txindex.pos.nBlockPos))
@@ -941,6 +935,14 @@ Value gettransaction(const Array& params, bool fHelp)
                 blockindex = mapBlockIndex[blockhash];
         }
     }
+
+    if (mapTransactions.count(txhash))
+        tx = mapTransactions[txhash];
+    else if (!fOnDisk)
+        throw runtime_error("Transaction not found.");
+
+    printf("txHash is: %s\n", txhash.GetHex().c_str());
+    printf("mapTransactions count %d\n", mapTransactions.count(txhash));
 
     return txToJSON(tx, blockindex);
 }

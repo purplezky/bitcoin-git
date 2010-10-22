@@ -804,8 +804,15 @@ Object txToJSON(const CTransaction& transaction, const CBlockIndex* blockindex)
     else
         result.push_back(Pair("confirmations", 0));
 
-    if (mapWallet.count(txhash))
+    bool inwallet = (mapWallet.count(txhash) > 0);
+    result.push_back(Pair("inwallet", inwallet));
+    if (inwallet)
+    {
         result.push_back(Pair("time", (boost::int64_t)mapWallet[txhash].GetTxTime()));
+        map<string,string>& comments = mapWallet[txhash].mapValue;
+        foreach(PAIRTYPE(string, string) item, comments)
+            result.push_back(Pair(item.first, item.second));
+    }
     else if (blockindex)
         result.push_back(Pair("time", (boost::int64_t)blockindex->GetMedianTime()));
 
@@ -1695,8 +1702,6 @@ public:
         string path = urlparts[4];
         map<string, string> headers;
 
-        printf("POST to %s:%d%s  %s\n", host.c_str(), port, path.c_str(), body.c_str());
-
 #ifdef USE_SSL
         asio::io_service io_service;
         ssl::context context(io_service, ssl::context::sslv23);
@@ -1706,7 +1711,7 @@ public:
         iostreams::stream<SSLIOStreamDevice> stream(d);
         if (!d.connect(host, lexical_cast<string>(port)))
         {
-            printf("Couldn't connect to %s:%d", host.c_str(), port);
+            printf("POST: Couldn't connect to %s:%d", host.c_str(), port);
             return false;
         }
 #else
@@ -1722,7 +1727,7 @@ public:
         map<string, string> mapResponseHeaders;
         string strReply;
         int status = ReadHTTP(stream, mapResponseHeaders, strReply);
-        printf(" HTTP response %d: %s\n", status, strReply.c_str());
+//        printf(" HTTP response %d: %s\n", status, strReply.c_str());
 
         return (status < 300);
     }

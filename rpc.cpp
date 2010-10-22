@@ -941,9 +941,6 @@ Value gettransaction(const Array& params, bool fHelp)
     else if (!fOnDisk)
         throw runtime_error("Transaction not found.");
 
-    printf("txHash is: %s\n", txhash.GetHex().c_str());
-    printf("mapTransactions count %d\n", mapTransactions.count(txhash));
-
     return txToJSON(tx, blockindex);
 }
 

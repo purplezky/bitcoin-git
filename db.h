@@ -467,6 +467,7 @@ protected:
     friend class CReserveKey;
 public:
     vector<unsigned char> GetKeyFromKeyPool();
+    int64 GetOldestKeyPoolTime();
 };
 
 bool LoadWallet(bool& fFirstRunRet);

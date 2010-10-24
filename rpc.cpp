@@ -658,6 +658,7 @@ Value backupwallet(const Array& params, bool fHelp)
     return Value::null;
 }
 
+
 Value validateaddress(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)

@@ -314,24 +314,6 @@ int64 CTxIn::GetDebit() const
 }
 
 //
-// Get sending BC address
-//
-string CTxIn::Address() const
-{
-    CRITICAL_BLOCK(cs_mapTransactions)
-    {
-        if (mapTransactions.count(prevout.hash))
-            return mapTransactions[prevout.hash].vout[prevout.n].Address();
-    }
-    CTxIndex txindex;
-    CTransaction txPrev;
-    bool fFound = CTxDB("r").ReadTxIndex(prevout.hash, txindex);
-    if (!fFound || !txPrev.ReadFromDisk(txindex.pos) || prevout.n >= txPrev.vout.size())
-        return "";
-    return txPrev.vout[prevout.n].Address();
-}
-
-//
 // Get receiving BC address
 //
 string CTxOut::Address() const

@@ -381,7 +381,7 @@ Value sendtoaddress(const Array& params, bool fHelp)
     string strError = SendMoneyToBitcoinAddress(strAddress, nAmount, wtx);
     if (strError != "")
         throw JSONRPCError(-4, strError);
-    return "sent";
+    return wtx.GetHash().GetHex();
 }
 
 

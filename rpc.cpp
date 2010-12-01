@@ -1354,43 +1354,6 @@ Value getblock(const Array& params, bool fHelp)
     return blockToJSON(block, pblockindex);
 }
 
-Value gettransaction(const Array& params, bool fHelp)
-{
-    if (fHelp || params.size() != 1)
-        throw runtime_error(
-            "gettransaction <hash>\n"
-            "Returns details of transaction with <hash> (hexadecimal).");
-
-    uint256 txhash;
-    txhash.SetHex(params[0].get_str());
-
-    // Fetch transaction from memory or disk
-    CTransaction tx;
-    CTxIndex txindex;
-    CBlockIndex *blockindex = NULL;
-
-    bool fOnDisk = CTxDB("r").ReadDiskTx(txhash, tx, txindex);
-    if (fOnDisk)  // Get blockindex to compute confirmations
-    {
-        CBlock blockTmp;
-        if (blockTmp.ReadFromDisk(txindex.pos.nFile, txindex.pos.nBlockPos))
-        {
-            uint256 blockhash = blockTmp.GetHash();
-            if (mapBlockIndex.count(blockhash))
-                blockindex = mapBlockIndex[blockhash];
-        }
-    }
-
-    if (mapTransactions.count(txhash))
-        tx = mapTransactions[txhash];
-    else if (!fOnDisk)
-        throw runtime_error("Transaction not found.");
-
-    return txToJSON(tx, blockindex);
-}
-
-
-
 
 
 
@@ -1441,7 +1404,6 @@ pair<string, rpcfn_type> pCallTable[] =
     make_pair("monitorblocks",         &monitorblocks),
     make_pair("listmonitored",         &listmonitored),
     make_pair("getblock",              &getblock),
-    make_pair("gettransaction",        &gettransaction),
 };
 map<string, rpcfn_type> mapCallTable(pCallTable, pCallTable + sizeof(pCallTable)/sizeof(pCallTable[0]));
 

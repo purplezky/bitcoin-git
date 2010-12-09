@@ -590,7 +590,7 @@ bool CTransaction::AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs, bool* pfMi
         return error("AcceptToMemoryPool() : not accepting nLockTime beyond 2038 yet");
 
     // Rather not work on nonstandard transactions
-    if (GetSigOpCount() > 2 || ::GetSerializeSize(*this, SER_NETWORK) < 100)
+    if (!IsStandard() || GetSigOpCount() > 2 || ::GetSerializeSize(*this, SER_NETWORK) < 100)
         return error("AcceptToMemoryPool() : nonstandard transaction");
 
     // Do we already have it?
@@ -2592,14 +2592,16 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
     else if (strCommand == "checkorder")
     {
         uint256 hashReply;
-        CWalletTx order;
-        vRecv >> hashReply >> order;
+        vRecv >> hashReply;
 
-        if (!mapArgs.count("-allowreceivebyip") || mapArgs["-allowreceivebyip"] == "0")
+        if (!GetBoolArg("-allowreceivebyip"))
         {
             pfrom->PushMessage("reply", hashReply, (int)2, string(""));
             return true;
         }
+
+        CWalletTx order;
+        vRecv >> order;
 
         /// we have a chance to check the order here
 
@@ -2617,15 +2619,17 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
     else if (strCommand == "submitorder")
     {
         uint256 hashReply;
-        CWalletTx wtxNew;
-        vRecv >> hashReply >> wtxNew;
-        wtxNew.fFromMe = false;
+        vRecv >> hashReply;
 
-        if (!mapArgs.count("-allowreceivebyip") || mapArgs["-allowreceivebyip"] == "0")
+        if (!GetBoolArg("-allowreceivebyip"))
         {
             pfrom->PushMessage("reply", hashReply, (int)2);
             return true;
         }
+
+        CWalletTx wtxNew;
+        vRecv >> wtxNew;
+        wtxNew.fFromMe = false;
 
         // Broadcast
         if (!wtxNew.AcceptWalletTransaction())

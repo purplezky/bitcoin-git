@@ -589,9 +589,14 @@ bool CTransaction::AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs, bool* pfMi
     if ((int64)nLockTime > INT_MAX)
         return error("AcceptToMemoryPool() : not accepting nLockTime beyond 2038 yet");
 
-    // Rather not work on nonstandard transactions
-    if (!IsStandard() || GetSigOpCount() > 2 || ::GetSerializeSize(*this, SER_NETWORK) < 100)
+    // Safety limits
+    unsigned int nSize = ::GetSerializeSize(*this, SER_NETWORK);
+    if (GetSigOpCount() > 2 || nSize < 100)
         return error("AcceptToMemoryPool() : nonstandard transaction");
+
+    // Rather not work on nonstandard transactions
+    if (!IsStandard())
+        return error("AcceptToMemoryPool() : nonstandard transaction type");
 
     // Do we already have it?
     uint256 hash = GetHash();
@@ -630,14 +635,36 @@ bool CTransaction::AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs, bool* pfMi
         }
     }
 
-    // Check against previous transactions
-    map<uint256, CTxIndex> mapUnused;
-    int64 nFees = 0;
-    if (fCheckInputs && !ConnectInputs(txdb, mapUnused, CDiskTxPos(1,1,1), pindexBest, nFees, false, false))
+    if (fCheckInputs)
     {
-        if (pfMissingInputs)
-            *pfMissingInputs = true;
-        return error("AcceptToMemoryPool() : ConnectInputs failed %s", hash.ToString().substr(0,10).c_str());
+        // Check against previous transactions
+        map<uint256, CTxIndex> mapUnused;
+        int64 nFees = 0;
+        if (!ConnectInputs(txdb, mapUnused, CDiskTxPos(1,1,1), pindexBest, nFees, false, false))
+        {
+            if (pfMissingInputs)
+                *pfMissingInputs = true;
+            return error("AcceptToMemoryPool() : ConnectInputs failed %s", hash.ToString().substr(0,10).c_str());
+        }
+
+        // Don't accept it if it can't get into a block
+        if (nFees < GetMinFee(1000))
+            return error("AcceptToMemoryPool() : not enough fees");
+
+        // Limit free transactions per 10 minutes
+        if (nFees < CENT && GetBoolArg("-limitfreerelay"))
+        {
+            static int64 nNextReset;
+            static int64 nFreeCount;
+            if (GetTime() > nNextReset)
+            {
+                nNextReset = GetTime() + 10 * 60;
+                nFreeCount = 0;
+            }
+            if (nFreeCount > 150000 && !IsFromMe())
+                return error("AcceptToMemoryPool() : free transaction rejected by rate limiter");
+            nFreeCount += nSize;
+        }
     }
 
     // Store transaction in memory
@@ -1951,7 +1978,6 @@ string GetWarnings(string strFor)
             {
                 nPriority = alert.nPriority;
                 strStatusBar = alert.strStatusBar;
-                strRPC = alert.strRPCError;
             }
         }
     }

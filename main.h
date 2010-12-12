@@ -1761,7 +1761,7 @@ public:
     // Actions
     string strComment;
     string strStatusBar;
-    string strRPCError;
+    string strReserved;
 
     IMPLEMENT_SERIALIZE
     (
@@ -1779,7 +1779,7 @@ public:
 
         READWRITE(strComment);
         READWRITE(strStatusBar);
-        READWRITE(strRPCError);
+        READWRITE(strReserved);
     )
 
     void SetNull()
@@ -1797,7 +1797,7 @@ public:
 
         strComment.clear();
         strStatusBar.clear();
-        strRPCError.clear();
+        strReserved.clear();
     }
 
     string ToString() const
@@ -1822,7 +1822,6 @@ public:
                 "    nPriority    = %d\n"
                 "    strComment   = \"%s\"\n"
                 "    strStatusBar = \"%s\"\n"
-                "    strRPCError  = \"%s\"\n"
                 ")\n",
             nVersion,
             nRelayUntil,
@@ -1835,8 +1834,7 @@ public:
             strSetSubVer.c_str(),
             nPriority,
             strComment.c_str(),
-            strStatusBar.c_str(),
-            strRPCError.c_str());
+            strStatusBar.c_str());
     }
 
     void print() const

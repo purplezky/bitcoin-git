@@ -1,12 +1,5 @@
-Gavin's Bitcoin patches
-=======================
+December 22, 2010 : Clone from https://github.com/bitcoin/bitcoin please
 
-Branches here:
+I've created an official integration tree for bitcoin patches at https://github.com/bitcoin/bitcoin
 
-* svn : up-to-date mirror of the 'production' Bitcoin (from http://sourceforge.net/projects/bitcoin/).
-* monitorreceived : Implements monitortransaction/monitorblocks/gettransaction/getblock RPC commands.
-* listtransactions: Implements new JSON-RPC command "listtransactions" (from jgarzik)
-* refundtransaction : Implements new JSON-RPC command "refundtransaction"
-* master : All of the above, merged together.
-
-Code is hosted at github: http://github.com/gavinandresen/bitcoin-git
+In a few weeks I'm going to delete this repository and re-create it under a different name.

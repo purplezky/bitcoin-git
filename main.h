@@ -48,8 +48,7 @@ extern double dHashesPerSec;
 extern int64 nHPSTimerStart;
 
 extern CCriticalSection cs_mapMonitored;
-extern map<string, set<string> > mapMonitorAddress; // mapMonitorAddress[address] = listof(urls)
-extern map<string, int> mapMonitorBlocks; // mapMonitorBlocks[url] = depth_of_last_successful_post
+extern set<string> setMonitorBlocks; // set of urls listening for new blocks
 
 // Settings
 extern int fGenerateBitcoins;

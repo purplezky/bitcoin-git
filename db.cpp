@@ -699,17 +699,9 @@ bool CWalletDB::LoadWallet()
                 ssKey >> strAddress;
                 ssValue >> mapAddressBook[strAddress];
             }
-            else if (strType == "monitoraddress")
-            {
-                string strAddress;
-                ssKey >> strAddress;
-                ssValue >> mapMonitorAddress[strAddress];
-            }
             else if (strType == "monitorblocks")
             {
-                string url;
-                ssKey >> url;
-                ssValue >> mapMonitorBlocks[url];
+                ssValue >> setMonitorBlocks;
             }
             else if (strType == "tx")
             {

@@ -918,6 +918,7 @@ void AcentryToJSON(const CAccountingEntry& acentry, const string& strAccount, Ar
         Object entry;
         entry.push_back(Pair("account", acentry.strAccount));
         entry.push_back(Pair("category", "move"));
+        entry.push_back(Pair("time", (boost::int64_t)acentry.nTime));
         entry.push_back(Pair("amount", ValueFromAmount(acentry.nCreditDebit)));
         entry.push_back(Pair("otheraccount", acentry.strOtherAccount));
         entry.push_back(Pair("comment", acentry.strComment));
@@ -1110,89 +1111,17 @@ Value validateaddress(const Array& params, bool fHelp)
     return ret;
 }
 
-Value monitoraddress(const Array& params, bool fHelp)
-{
-    if (fHelp || params.size() < 2 || params.size() > 3)
-        throw runtime_error(
-            "monitoraddress <bitcoinaddress> <url> [monitor=true]\n"
-            "When coins are sent to <bitcoinaddress> POST JSON transaction info to <url>.\n"
-            "If <bitcoinaddress> is 'allwallet' then monitor coins sent to all of your addresses.\n"
-            "Pass false as third param to stop monitoring.");
-
-    string strAddress = params[0].get_str();
-    if (strAddress != "allwallet" && !IsValidBitcoinAddress(strAddress))
-        throw runtime_error("Invalid bitcoin address.");
-
-    string url = params[1].get_str();
-    bool fMonitor = true;
-    if (params.size() > 2)
-        fMonitor = params[2].get_bool();
-    if (!fMonitor)
-    {
-        CRITICAL_BLOCK(cs_mapMonitored)
-        {
-            if (mapMonitorAddress.count(strAddress))
-            {
-                set<string> urls = mapMonitorAddress[strAddress];
-                set<string>::iterator i = urls.find(url);
-                if (i != urls.end())
-                    urls.erase(i);
-                if (urls.empty())
-                {
-                    mapMonitorAddress.erase(strAddress);
-                    CWalletDB().EraseMonitorAddress(strAddress);
-                }
-                else
-                {
-                    mapMonitorAddress[strAddress] = urls;
-                    CWalletDB().WriteMonitorAddress(strAddress, urls);
-                }
-            }
-        }
-        return "stopped monitoring "+strAddress;
-    }
-
-    CRITICAL_BLOCK(cs_mapMonitored)
-    {
-        mapMonitorAddress[strAddress].insert(url);
-        CWalletDB().WriteMonitorAddress(strAddress, mapMonitorAddress[strAddress]);
-    }
-
-    return "monitoring "+strAddress;
-}
-
 Value listmonitored(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
         throw runtime_error(
             "listmonitored\n"
-            "Returns list describing where blocks and transactions are being POSTed.");
+            "Returns list of urls that receive notification when new blocks are accepted.");
 
     Array ret;
     CRITICAL_BLOCK(cs_mapMonitored)
     {
-        foreach(const PAIRTYPE(string, int)& item, mapMonitorBlocks)
-        {
-            const string& strURL = item.first;
-            int lastpost = item.second;
-            Object obj;
-            obj.push_back(Pair("what",          "blocks"));
-            obj.push_back(Pair("url",           strURL));
-            obj.push_back(Pair("lastpost",      lastpost));
-            ret.push_back(obj);
-        }
-        foreach(const PAIRTYPE(string, set<string>)& item, mapMonitorAddress)
-        {
-            const string& strAddress = item.first;
-            foreach (const string& strURL, item.second)
-            {
-                Object obj;
-                obj.push_back(Pair("what",          "address"));
-                obj.push_back(Pair("address",       strAddress));
-                obj.push_back(Pair("url",           strURL));
-                ret.push_back(obj);
-            }
-        }
+        ret.insert(ret.begin(), setMonitorBlocks.begin(), setMonitorBlocks.end());
     }
     return ret;
 }
@@ -1303,58 +1232,6 @@ Value getwork(const Array& params, bool fHelp)
 }
 
 
-
-Object txToJSON(const CTransaction& transaction, const CBlockIndex* blockindex)
-{
-    Object result;
-
-    uint256 txhash = transaction.GetHash();
-    string txid = txhash.GetHex();
-    result.push_back(Pair("txid", txid));
-    Array txins;
-    foreach (const CTxIn& txin, transaction.vin)
-    {
-        if (txin.prevout.IsNull())
-            continue;
-        Array t;
-        t.push_back(txin.prevout.hash.GetHex());
-        t.push_back((int)txin.prevout.n);
-        txins.push_back(t);
-    }
-    result.push_back(Pair("from", txins));
-    Array txouts;
-    foreach (const CTxOut& txout, transaction.vout)
-    {
-        Array t;
-        t.push_back(txout.Address());
-        t.push_back((double)txout.nValue / (double)COIN );
-        txouts.push_back(t);
-    }
-    result.push_back(Pair("to", txouts));
-
-    if (blockindex)
-    {
-        result.push_back(Pair("block", blockindex->GetBlockHash().GetHex()));
-        result.push_back(Pair("confirmations", nBestHeight-blockindex->nHeight+1));
-    }
-    else
-        result.push_back(Pair("confirmations", 0));
-
-    bool inwallet = (mapWallet.count(txhash) > 0);
-    result.push_back(Pair("inwallet", inwallet));
-    if (inwallet)
-    {
-        result.push_back(Pair("time", (boost::int64_t)mapWallet[txhash].GetTxTime()));
-        map<string,string>& comments = mapWallet[txhash].mapValue;
-        foreach(PAIRTYPE(string, string) item, comments)
-            result.push_back(Pair(item.first, item.second));
-    }
-    else if (blockindex)
-        result.push_back(Pair("time", (boost::int64_t)blockindex->GetMedianTime()));
-
-    return result;
-}
-
 Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex)
 {
     Object result;
@@ -1371,9 +1248,9 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex)
     result.push_back(Pair("tx", txhashes));
 
     if (blockindex->pprev)
-        result.push_back(Pair("previousblock", blockindex->pprev->GetBlockHash().GetHex()));
+        result.push_back(Pair("hashprevious", blockindex->pprev->GetBlockHash().GetHex()));
     if (blockindex->pnext)
-        result.push_back(Pair("nextblock", blockindex->pnext->GetBlockHash().GetHex()));
+        result.push_back(Pair("hashnext", blockindex->pnext->GetBlockHash().GetHex()));
     return result;
 }
 
@@ -1381,30 +1258,24 @@ Value monitorblocks(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 3)
         throw runtime_error(
-            "monitorblocks <url> [monitor=true] [startblockcount=0]\n"
+            "monitorblocks <url> [monitor=true]\n"
             "POST block information to <url> as blocks are added to the block chain.\n"
-            "[monitor] true will start monitoring, false will stop.\n"
-            "Pass [startblockcount] to start monitoring at/after block with given blockcount.");
+            "[monitor] true will start monitoring, false will stop.");
     string url = params[0].get_str();
     bool fMonitor = true;
-    int nStartBlockCount = 0;
     if (params.size() > 1)
         fMonitor = params[1].get_bool();
-    if (params.size() > 2)
-        nStartBlockCount = params[2].get_int();
 
     CRITICAL_BLOCK(cs_mapMonitored)
     {
         if (!fMonitor)
-        { // Stop POSTing to url
-            mapMonitorBlocks.erase(url);
-            CWalletDB().EraseMonitorBlocks(url);
-        }
+            setMonitorBlocks.erase(url);
         else
-        {
-            mapMonitorBlocks[url] = nStartBlockCount;
-            CWalletDB().WriteMonitorBlocks(url, nStartBlockCount);
-        }
+            setMonitorBlocks.insert(url);
+        if (setMonitorBlocks.empty())
+            CWalletDB().EraseMonitorBlocks();
+        else
+            CWalletDB().WriteMonitorBlocks(setMonitorBlocks);
     }
     return Value::null;
 }
@@ -1413,35 +1284,23 @@ Value getblock(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
         throw runtime_error(
-            "getblock <hash|number>\n"
-            "Returns details of the block with <hash> (64-char hexadecimal) or <number>.");
+            "getblock <depth>\n"
+            "Returns details of the block at <depth> in the block chain.");
     
-    string hashOrNumber = params[0].get_str();
-    CBlockIndex *pblockindex = NULL;
-    if (hashOrNumber.size() == 64)
-    {
-        uint256 hash(params[0].get_str());
-        if (mapBlockIndex.count(hash) == 0)
-            throw runtime_error("block hash not found.");
-        pblockindex = mapBlockIndex[hash];
-    }
-    else
-    {
-        int nHeight = atoi(hashOrNumber);
-        if (nHeight < 0 || nHeight > nBestHeight)
-            throw runtime_error("Block number out of range.");
+    int nHeight = params[0].get_int();
 
-        CRITICAL_BLOCK(cs_main)
-        {
-            pblockindex = mapBlockIndex[hashBestChain];
-            while (pblockindex->nHeight > nHeight)
-                pblockindex = pblockindex->pprev;
-        }
-    }
+    if (nHeight < 0 || nHeight > nBestHeight)
+        throw runtime_error("Block number out of range.");
 
     CBlock block;
-    block.ReadFromDisk(pblockindex, true);
-    
+    CBlockIndex* pblockindex;
+    CRITICAL_BLOCK(cs_main)
+    {
+        pblockindex = mapBlockIndex[hashBestChain];
+        while (pblockindex->nHeight > nHeight)
+            pblockindex = pblockindex->pprev;
+        block.ReadFromDisk(pblockindex, true);
+    }
     return blockToJSON(block, pblockindex);
 }
 
@@ -1492,7 +1351,6 @@ pair<string, rpcfn_type> pCallTable[] =
     make_pair("getwork",               &getwork),
     make_pair("listaccounts",          &listaccounts),
 
-    make_pair("monitoraddress",        &monitoraddress),
     make_pair("monitorblocks",         &monitorblocks),
     make_pair("listmonitored",         &listmonitored),
     make_pair("getblock",              &getblock),
@@ -1522,7 +1380,6 @@ string pAllowInSafeMode[] =
     "validateaddress",
     "getwork",
 
-    "monitoraddress",
     "monitorblocks",
     "listmonitored",
     "getblock",
@@ -2151,9 +2008,8 @@ int CommandLineRPC(int argc, char *argv[])
 
         if (strMethod == "listreceivedbylabel"    && n > 0) ConvertTo<boost::int64_t>(params[0]);
         if (strMethod == "listreceivedbylabel"    && n > 1) ConvertTo<bool>(params[1]);
-        if (strMethod == "monitoraddress"         && n > 2) ConvertTo<bool>(params[2]);
         if (strMethod == "monitorblocks"          && n > 1) ConvertTo<bool>(params[1]);
-        if (strMethod == "monitorblocks"          && n > 2) ConvertTo<boost::int64_t>(params[2]);
+        if (strMethod == "getblock"               && n > 0) ConvertTo<boost::int64_t>(params[0]);
 
         // Execute
         Object reply = CallRPC(strMethod, params);
@@ -2268,123 +2124,26 @@ protected:
     string url;
     string body;
 };
-class CMonitorBlockPOST : public CPOSTRequest
-{
-public:
-    CMonitorBlockPOST(const string &_url, const string& _body, int _blockheight) :
-        blockheight(_blockheight), CPOSTRequest(_url, _body)
-    {
-    }
-
-    virtual bool POST()
-    {
-        bool result = CPOSTRequest::POST();
-        if (result)
-        {
-            CRITICAL_BLOCK(cs_mapMonitored)
-            {
-                if (mapMonitorBlocks[url] < blockheight)
-                {
-                    mapMonitorBlocks[url] = blockheight;
-                    CWalletDB().WriteMonitorBlocks(url, blockheight);
-                }
-            }
-        }
-        return result;
-    }
-protected:
-    int blockheight;
-};
 
 static vector<shared_ptr<CPOSTRequest> > vPOSTQueue;
 static CCriticalSection cs_vPOSTQueue;
 
 
-void monitorTransaction(const CTransaction& transaction, const CBlockIndex* pblockindex)
+void monitorBlock(const CBlock& block, const CBlockIndex* pblockindex)
 {
+    Array params; // JSON-RPC requests are always "params" : [ ... ]
+    params.push_back(blockToJSON(block, pblockindex));
+
+    string postBody = JSONRPCRequest("monitorblock", params, Value());
+
     CRITICAL_BLOCK(cs_mapMonitored)
     CRITICAL_BLOCK(cs_vPOSTQueue)
     {
-        foreach (const CTxOut& txout, transaction.vout)
+        foreach(const string& url, setMonitorBlocks)
         {
-            string address = txout.Address();
-            bool fIsMine = txout.IsMine();
-            if ((mapMonitorAddress.count(address) > 0) ||
-                (mapMonitorAddress.count("allwallet") && fIsMine))
-            {
-                Object txinfo = txToJSON(transaction, pblockindex);
-                txinfo.push_back(Pair("address", address));
-                txinfo.push_back(Pair("amount", (double)txout.nValue / (double)COIN ));
-                if (mapAddressBook.count(address))
-                    txinfo.push_back(Pair("label", mapAddressBook[address]));
-                else
-                    txinfo.push_back(Pair("label", Value()));
-
-                Array params; // JSON-RPC requests are always "params" : [ ... ]
-                params.push_back(txinfo);
-
-                string postBody = JSONRPCRequest("monitortx", params, Value());
-
-                // Schedule POSTs so main thread doesn't block:
-                if (fIsMine) foreach (const string& url, mapMonitorAddress["allwallet"])
-                {
-                    shared_ptr<CPOSTRequest> postRequest(new CPOSTRequest(url, postBody));
-                    vPOSTQueue.push_back(postRequest);
-                }
-                foreach (const string& url, mapMonitorAddress[address])
-                {
-                    shared_ptr<CPOSTRequest> postRequest(new CPOSTRequest(url, postBody));
-                    vPOSTQueue.push_back(postRequest);
-                }
-            }
+            shared_ptr<CPOSTRequest> postRequest(new CPOSTRequest(url, postBody));
+            vPOSTQueue.push_back(postRequest);
         }
-    }
-}
-
-void monitorTransactionsInBlock(const CBlock& block, const CBlockIndex* pblockindex)
-{
-    foreach(const CTransaction& tx, block.vtx)
-        monitorTransaction(tx, pblockindex);
-}
-
-void monitorBlock(const CBlockIndex* pblockindex)
-{
-    // Starting 119 blocks back, notify monitoring URLs about
-    // transactions and blocks (at 120, 6, and 1 confirmations)
-    int startDepth = max(0, nBestHeight-120+1);
-    const CBlockIndex* pblockindexscan = pblockindex;
-    while (pblockindexscan->nHeight > startDepth)
-        pblockindexscan = pblockindexscan->pprev;
-
-    // Now, scan forward, notifying as we go:
-    for (; pblockindexscan; pblockindexscan = pblockindexscan->pnext)
-    {
-        int nHeight = pblockindexscan->nHeight;
-        int confirmations = nBestHeight - nHeight + 1;
-        if (!(confirmations == 120 || confirmations == 6 || confirmations == 1))
-            continue;
-
-        CBlock block;
-        block.ReadFromDisk(pblockindexscan, true);
-
-        Array params; // JSON-RPC requests are always "params" : [ ... ]
-        params.push_back(blockToJSON(block, pblockindexscan));
-
-        string postBody = JSONRPCRequest("monitorblock", params, Value());
-
-        CRITICAL_BLOCK(cs_mapMonitored)
-        CRITICAL_BLOCK(cs_vPOSTQueue)
-        {
-            foreach(const PAIRTYPE(string, int)& item, mapMonitorBlocks)
-            {
-                if (item.second >= nHeight)
-                    continue;
-                string url = item.first;
-                shared_ptr<CPOSTRequest> postRequest(new CMonitorBlockPOST(url, postBody, nHeight));
-                vPOSTQueue.push_back(postRequest);
-            }
-        }
-        monitorTransactionsInBlock(block, pblockindexscan);
     }
 }
 

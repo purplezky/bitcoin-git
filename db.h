@@ -436,39 +436,21 @@ public:
     int64 GetAccountCreditDebit(const string& strAccount);
     void ListAccountCreditDebit(const string& strAccount, list<CAccountingEntry>& acentries);
 
-    bool ReadMonitorAddress(const string& strAddress, set<string>& urls)
+    bool ReadMonitorBlocks(set<string>& urls)
     {
-        urls.clear();
-        return Read(make_pair(string("monitoraddress"), strAddress), urls);
+        return Read(string("monitorblocks"), urls);
     }
 
-    bool WriteMonitorAddress(const string& strAddress, const set<string>& strURL)
+    bool WriteMonitorBlocks(const set<string>& urls)
     {
         nWalletDBUpdated++;
-        return Write(make_pair(string("monitoraddress"), strAddress), strURL);
+        return Write(string("monitorblocks"), urls);
     }
 
-    bool EraseMonitorAddress(const string& strAddress)
+    bool EraseMonitorBlocks()
     {
         nWalletDBUpdated++;
-        return Erase(make_pair(string("monitoraddress"), strAddress));
-    }
-
-    bool ReadMonitorBlocks(const string& url, int& lastpost)
-    {
-        return Read(make_pair(string("monitorblocks"), url), lastpost);
-    }
-
-    bool WriteMonitorBlocks(const string& url, int lastpost)
-    {
-        nWalletDBUpdated++;
-        return Write(make_pair(string("monitorblocks"), url), lastpost);
-    }
-
-    bool EraseMonitorBlocks(const string& url)
-    {
-        nWalletDBUpdated++;
-        return Erase(make_pair(string("monitorblocks"), url));
+        return Erase(string("monitorblocks"));
     }
 
     bool LoadWallet();

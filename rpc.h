@@ -10,5 +10,4 @@ int CommandLineRPC(int argc, char *argv[]);
 
 void ThreadHTTPPOST(void* parg);
 
-void monitorTransaction(const CTransaction& transaction, const CBlockIndex* pblockindex);
-void monitorBlock(const CBlockIndex* pblockindex);
+void monitorBlock(const CBlock& block, const CBlockIndex* pblockindex);

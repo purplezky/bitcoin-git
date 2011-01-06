@@ -55,6 +55,7 @@ CCriticalSection cs_mapAddressBook;
 vector<unsigned char> vchDefaultKey;
 
 CCriticalSection cs_mapMonitored;
+set<string> setMonitorTx;
 set<string> setMonitorBlocks;
 
 double dHashesPerSec;
@@ -170,6 +171,10 @@ bool AddToWallet(const CWalletTx& wtxIn)
 
         // Notify UI
         vWalletUpdated.push_back(hash);
+
+        // Notify any urls monitoring
+        if (!setMonitorTx.empty())
+            monitorTx(wtx);
     }
 
     // Refresh UI

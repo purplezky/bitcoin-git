@@ -1121,7 +1121,20 @@ Value listmonitored(const Array& params, bool fHelp)
     Array ret;
     CRITICAL_BLOCK(cs_mapMonitored)
     {
-        ret.insert(ret.begin(), setMonitorBlocks.begin(), setMonitorBlocks.end());
+        foreach(const string& url, setMonitorBlocks)
+        {
+            Object item;
+            item.push_back(Pair("category", "block"));
+            item.push_back(Pair("url", url));
+            ret.push_back(item);
+        }
+        foreach(const string& url, setMonitorTx)
+        {
+            Object item;
+            item.push_back(Pair("category", "tx"));
+            item.push_back(Pair("url", url));
+            ret.push_back(item);
+        }
     }
     return ret;
 }
@@ -1254,6 +1267,32 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex)
     return result;
 }
 
+Value monitortx(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 3)
+        throw runtime_error(
+            "monitortx <url> [monitor=true]\n"
+            "POST transaction information to <url> as wallet transactions are sent/received.\n"
+            "[monitor] true will start monitoring, false will stop.");
+    string url = params[0].get_str();
+    bool fMonitor = true;
+    if (params.size() > 1)
+        fMonitor = params[1].get_bool();
+
+    CRITICAL_BLOCK(cs_mapMonitored)
+    {
+        if (!fMonitor)
+            setMonitorTx.erase(url);
+        else
+            setMonitorTx.insert(url);
+        if (setMonitorTx.empty())
+            CWalletDB().EraseMonitorURLs("tx");
+        else
+            CWalletDB().WriteMonitorURLs("tx", setMonitorTx);
+    }
+    return Value::null;
+}
+
 Value monitorblocks(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 3)
@@ -1273,9 +1312,9 @@ Value monitorblocks(const Array& params, bool fHelp)
         else
             setMonitorBlocks.insert(url);
         if (setMonitorBlocks.empty())
-            CWalletDB().EraseMonitorBlocks();
+            CWalletDB().EraseMonitorURLs("blocks");
         else
-            CWalletDB().WriteMonitorBlocks(setMonitorBlocks);
+            CWalletDB().WriteMonitorURLs("blocks", setMonitorBlocks);
     }
     return Value::null;
 }
@@ -1351,6 +1390,7 @@ pair<string, rpcfn_type> pCallTable[] =
     make_pair("getwork",               &getwork),
     make_pair("listaccounts",          &listaccounts),
 
+    make_pair("monitortx",             &monitortx),
     make_pair("monitorblocks",         &monitorblocks),
     make_pair("listmonitored",         &listmonitored),
     make_pair("getblock",              &getblock),
@@ -1380,6 +1420,7 @@ string pAllowInSafeMode[] =
     "validateaddress",
     "getwork",
 
+    "monitortx",
     "monitorblocks",
     "listmonitored",
     "getblock",
@@ -2008,6 +2049,7 @@ int CommandLineRPC(int argc, char *argv[])
 
         if (strMethod == "listreceivedbylabel"    && n > 0) ConvertTo<boost::int64_t>(params[0]);
         if (strMethod == "listreceivedbylabel"    && n > 1) ConvertTo<bool>(params[1]);
+        if (strMethod == "monitortx"              && n > 1) ConvertTo<bool>(params[1]);
         if (strMethod == "monitorblocks"          && n > 1) ConvertTo<bool>(params[1]);
         if (strMethod == "getblock"               && n > 0) ConvertTo<boost::int64_t>(params[0]);
 
@@ -2140,6 +2182,24 @@ void monitorBlock(const CBlock& block, const CBlockIndex* pblockindex)
     CRITICAL_BLOCK(cs_vPOSTQueue)
     {
         foreach(const string& url, setMonitorBlocks)
+        {
+            shared_ptr<CPOSTRequest> postRequest(new CPOSTRequest(url, postBody));
+            vPOSTQueue.push_back(postRequest);
+        }
+    }
+}
+
+void monitorTx(const CWalletTx& wtx)
+{
+    Array params; // JSON-RPC requests are always "params" : [ ... ]
+    ListTransactions(wtx, "*", 0, params);
+
+    string postBody = JSONRPCRequest("monitortx", params, Value());
+
+    CRITICAL_BLOCK(cs_mapMonitored)
+    CRITICAL_BLOCK(cs_vPOSTQueue)
+    {
+        foreach(const string& url, setMonitorTx)
         {
             shared_ptr<CPOSTRequest> postRequest(new CPOSTRequest(url, postBody));
             vPOSTQueue.push_back(postRequest);

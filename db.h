@@ -436,21 +436,21 @@ public:
     int64 GetAccountCreditDebit(const string& strAccount);
     void ListAccountCreditDebit(const string& strAccount, list<CAccountingEntry>& acentries);
 
-    bool ReadMonitorBlocks(set<string>& urls)
+    bool ReadMonitorURLs(const string& what, set<string>& urls)
     {
-        return Read(string("monitorblocks"), urls);
+        return Read(make_pair(string("monitor"), what), urls);
     }
 
-    bool WriteMonitorBlocks(const set<string>& urls)
+    bool WriteMonitorURLs(const string& what, const set<string>& urls)
     {
         nWalletDBUpdated++;
-        return Write(string("monitorblocks"), urls);
+        return Write(make_pair(string("monitor"), what), urls);
     }
 
-    bool EraseMonitorBlocks()
+    bool EraseMonitorURLs(const string& what)
     {
         nWalletDBUpdated++;
-        return Erase(string("monitorblocks"));
+        return Erase(make_pair(string("monitor"), what));
     }
 
     bool LoadWallet();

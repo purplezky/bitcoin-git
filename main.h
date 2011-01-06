@@ -48,6 +48,7 @@ extern double dHashesPerSec;
 extern int64 nHPSTimerStart;
 
 extern CCriticalSection cs_mapMonitored;
+extern set<string> setMonitorTx; // set of urls listening for new transactions
 extern set<string> setMonitorBlocks; // set of urls listening for new blocks
 
 // Settings

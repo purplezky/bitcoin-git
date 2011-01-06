@@ -699,9 +699,16 @@ bool CWalletDB::LoadWallet()
                 ssKey >> strAddress;
                 ssValue >> mapAddressBook[strAddress];
             }
-            else if (strType == "monitorblocks")
+            else if (strType == "monitor")
             {
-                ssValue >> setMonitorBlocks;
+                string what;
+                ssKey >> what;
+                if (what == "blocks")
+                    ssValue >> setMonitorBlocks;
+                else if (what == "tx")
+                    ssValue >> setMonitorTx;
+                else
+                    printf("Error in wallet.dat, unknown monitor type");
             }
             else if (strType == "tx")
             {

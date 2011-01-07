@@ -2193,6 +2193,8 @@ void monitorTx(const CWalletTx& wtx)
 {
     Array params; // JSON-RPC requests are always "params" : [ ... ]
     ListTransactions(wtx, "*", 0, params);
+    if (params.empty())
+        return; // Not our transaction
 
     string postBody = JSONRPCRequest("monitortx", params, Value());
 

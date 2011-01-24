@@ -17,7 +17,7 @@ bool fDaemon = false;
 bool fCommandLine = false;
 string strMiscWarning;
 bool fTestNet = false;
-
+bool fNoListen = false;
 
 
 
@@ -165,7 +165,7 @@ inline int OutputDebugStringF(const char* pszFormat, ...)
             GetDataDir(pszFile);
             strlcat(pszFile, "/debug.log", sizeof(pszFile));
             fileout = fopen(pszFile, "a");
-            setbuf(fileout, NULL); // unbuffered
+            if (fileout) setbuf(fileout, NULL); // unbuffered
         }
         if (fileout)
         {

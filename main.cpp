@@ -187,6 +187,19 @@ bool AddToWalletIfMine(const CTransaction& tx, const CBlock* pblock)
     return true;
 }
 
+bool AddToWalletIfFromMe(const CTransaction& tx, const CBlock* pblock)
+{
+    if (tx.IsFromMe() || mapWallet.count(tx.GetHash()))
+    {
+        CWalletTx wtx(tx);
+        // Get merkle branch if transaction was found in a block
+        if (pblock)
+            wtx.SetMerkleBranch(pblock);
+        return AddToWallet(wtx);
+    }
+    return true;
+}
+
 bool EraseFromWallet(uint256 hash)
 {
     CRITICAL_BLOCK(cs_mapWallet)
@@ -395,35 +408,57 @@ int CWalletTx::GetRequestCount() const
 }
 
 void CWalletTx::GetAmounts(int64& nGenerated, list<pair<string, int64> >& listReceived,
-                           int64& nSent, int64& nFee, string& strSentAccount) const
+                           list<pair<string, int64> >& listSent, int64& nFee, string& strSentAccount) const
 {
-    nGenerated = nSent = nFee = 0;
+    nGenerated = nFee = 0;
+    listReceived.clear();
+    listSent.clear();
+    strSentAccount = strFromAccount;
 
     if (IsCoinBase())
     {
-        if (GetBlocksToMaturity() == 0)
+        if (GetDepthInMainChain() >= COINBASE_MATURITY)
             nGenerated = GetCredit();
         return;
     }
 
-    // Received.  Standard client will never generate a send-to-multiple-recipients,
-    // but non-standard clients might (so return a list of address/amount pairs)
-    foreach(const CTxOut& txout, vout)
-    {
-        vector<unsigned char> vchPubKey;
-        if (ExtractPubKey(txout.scriptPubKey, true, vchPubKey))
-            listReceived.push_back(make_pair(PubKeyToAddress(vchPubKey), txout.nValue));
-    }
-
-    // Sent
+    // Compute fee:
     int64 nDebit = GetDebit();
-    if (nDebit > 0)
+    if (nDebit > 0) // debit>0 means we signed/sent this transaction
     {
         int64 nValueOut = GetValueOut();
         nFee = nDebit - nValueOut;
-        nSent = nValueOut - GetChange();
-        strSentAccount = strFromAccount;
     }
+
+    // Sent/received.  Standard client will never generate a send-to-multiple-recipients,
+    // but non-standard clients might (so return a list of address/amount pairs)
+    foreach(const CTxOut& txout, vout)
+    {
+        string address;
+        uint160 hash160;
+        vector<unsigned char> vchPubKey;
+        if (ExtractHash160(txout.scriptPubKey, hash160))
+            address = Hash160ToAddress(hash160);
+        else if (ExtractPubKey(txout.scriptPubKey, false, vchPubKey))
+            address = PubKeyToAddress(vchPubKey);
+        else
+        {
+            printf("CWalletTx::GetAmounts: Unknown transaction type found, txid %s\n",
+                   this->GetHash().ToString().c_str());
+            address = " unknown ";
+        }
+
+        // Don't report 'change' txouts
+        if (nDebit > 0 && txout.IsChange())
+            continue;
+
+        if (nDebit > 0)
+            listSent.push_back(make_pair(address, txout.nValue));
+
+        if (txout.IsMine())
+            listReceived.push_back(make_pair(address, txout.nValue));
+    }
+
 }
 
 void CWalletTx::GetAccountAmounts(const string& strAccount, int64& nGenerated, int64& nReceived, 
@@ -431,24 +466,37 @@ void CWalletTx::GetAccountAmounts(const string& strAccount, int64& nGenerated, i
 {
     nGenerated = nReceived = nSent = nFee = 0;
 
-    int64 allGenerated, allSent, allFee;
-    allGenerated = allSent = allFee = 0;
+    int64 allGenerated, allFee;
+    allGenerated = allFee = 0;
     string strSentAccount;
     list<pair<string, int64> > listReceived;
-    GetAmounts(allGenerated, listReceived, allSent, allFee, strSentAccount);
+    list<pair<string, int64> > listSent;
+    GetAmounts(allGenerated, listReceived, listSent, allFee, strSentAccount);
 
     if (strAccount == "")
         nGenerated = allGenerated;
     if (strAccount == strSentAccount)
     {
-        nSent = allSent;
+        foreach(const PAIRTYPE(string,int64)& s, listSent)
+            nSent += s.second;
         nFee = allFee;
     }
     CRITICAL_BLOCK(cs_mapAddressBook)
     {
         foreach(const PAIRTYPE(string,int64)& r, listReceived)
-            if (mapAddressBook.count(r.first) && mapAddressBook[r.first] == strAccount)
+        {
+            if (mapAddressBook.count(r.first))
+            {
+                if (mapAddressBook[r.first] == strAccount)
+                {
+                    nReceived += r.second;
+                }
+            }
+            else if (strAccount.empty())
+            {
                 nReceived += r.second;
+            }
+        }
     }
 }
 
@@ -830,11 +878,50 @@ bool CWalletTx::AcceptWalletTransaction(CTxDB& txdb, bool fCheckInputs)
     return false;
 }
 
+int ScanForWalletTransactions(CBlockIndex* pindexStart)
+{
+    int ret = 0;
+
+    CBlockIndex* pindex = pindexStart;
+    CRITICAL_BLOCK(cs_mapWallet)
+    {
+        while (pindex)
+        {
+            CBlock block;
+            block.ReadFromDisk(pindex, true);
+            foreach(CTransaction& tx, block.vtx)
+            {
+                uint256 hash = tx.GetHash();
+                if (mapWallet.count(hash)) continue;
+                AddToWalletIfMine(tx, &block);
+                if (mapWallet.count(hash))
+                {
+                    ++ret;
+                    printf("Added missing RECEIVE %s\n", hash.ToString().c_str());
+                    continue;
+                }
+                AddToWalletIfFromMe(tx, &block);
+                if (mapWallet.count(hash))
+                {
+                    ++ret;
+                    printf("Added missing SEND %s\n", hash.ToString().c_str());
+                    continue;
+                }
+            }
+            pindex = pindex->pnext;
+        }
+    }
+    return ret;
+}
+
 void ReacceptWalletTransactions()
 {
     CTxDB txdb("r");
-    CRITICAL_BLOCK(cs_mapWallet)
+    bool fRepeat = true;
+    while (fRepeat) CRITICAL_BLOCK(cs_mapWallet)
     {
+        fRepeat = false;
+        vector<CDiskTxPos> vMissingTx;
         foreach(PAIRTYPE(const uint256, CWalletTx)& item, mapWallet)
         {
             CWalletTx& wtx = item.second;
@@ -856,11 +943,14 @@ void ReacceptWalletTransactions()
                     {
                         if (!txindex.vSpent[i].IsNull() && wtx.vout[i].IsMine())
                         {
-                            printf("ReacceptWalletTransactions found spent coin %sbc %s\n", FormatMoney(wtx.GetCredit()).c_str(), wtx.GetHash().ToString().c_str());
                             wtx.fSpent = true;
-                            wtx.WriteToDisk();
-                            break;
+                            vMissingTx.push_back(txindex.vSpent[i]);
                         }
+                    }
+                    if (wtx.fSpent)
+                    {
+                        printf("ReacceptWalletTransactions found spent coin %sbc %s\n", FormatMoney(wtx.GetCredit()).c_str(), wtx.GetHash().ToString().c_str());
+                        wtx.WriteToDisk();
                     }
                 }
             }
@@ -870,6 +960,12 @@ void ReacceptWalletTransactions()
                 if (!wtx.IsCoinBase())
                     wtx.AcceptWalletTransaction(txdb, false);
             }
+        }
+        if (!vMissingTx.empty())
+        {
+            // TODO: optimize this to scan just part of the block chain?
+            if (ScanForWalletTransactions(pindexGenesisBlock))
+                fRepeat = true;  // Found missing transactions: re-do Reaccept.
         }
     }
 }
@@ -1341,8 +1437,6 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex)
 
     return true;
 }
-
-
 
 bool Reorganize(CTxDB& txdb, CBlockIndex* pindexNew)
 {
@@ -3033,7 +3127,7 @@ void CallCPUID(int in, int& aret, int& cret)
         "mov %%ecx, %1;" // ecx into c
         :"=r"(a),"=r"(c) /* output */
         :"r"(in) /* input */
-        :"%eax","%ecx" /* clobbered register */
+        :"%eax","%ebx","%ecx","%edx" /* clobbered register */
     );
     aret = a;
     cret = c;
@@ -3436,7 +3530,7 @@ void BitcoinMiner()
     SetThreadPriority(THREAD_PRIORITY_LOWEST);
     bool f4WaySSE2 = Detect128BitSSE2();
     if (mapArgs.count("-4way"))
-        f4WaySSE2 = GetBoolArg(mapArgs["-4way"]);
+        f4WaySSE2 = GetBoolArg("-4way");
 
     // Each thread has its own key and counter
     CReserveKey reservekey;

@@ -73,6 +73,7 @@ bool AddKey(const CKey& key);
 vector<unsigned char> GenerateNewKey();
 bool AddToWallet(const CWalletTx& wtxIn);
 void WalletUpdateSpent(const COutPoint& prevout);
+int ScanForWalletTransactions(CBlockIndex* pindexStart);
 void ReacceptWalletTransactions();
 bool LoadBlockIndex(bool fAllowNew=true);
 void PrintBlockTree();
@@ -881,7 +882,7 @@ public:
     }
 
     void GetAmounts(int64& nGenerated, list<pair<string /* address */, int64> >& listReceived,
-                    int64& nSent, int64& nFee, string& strSentAccount) const;
+                    list<pair<string /* address */, int64> >& listSent, int64& nFee, string& strSentAccount) const;
 
     void GetAccountAmounts(const string& strAccount, int64& nGenerated, int64& nReceived, 
                            int64& nSent, int64& nFee) const;

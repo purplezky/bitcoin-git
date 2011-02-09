@@ -2266,7 +2266,7 @@ void monitorBlock(const CBlock& block, const CBlockIndex* pblockindex)
 void monitorTx(const CWalletTx& wtx)
 {
     Array params; // JSON-RPC requests are always "params" : [ ... ]
-    ListTransactions(wtx, "*", 0, params);
+    ListTransactions(wtx, "*", 0, true, params);
     if (params.empty())
         return; // Not our transaction
 

@@ -375,6 +375,7 @@ Value getaccountaddress(const Array& params, bool fHelp)
 
 
 
+
 Value setaccount(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
@@ -1017,13 +1018,13 @@ Value listtransactions(const Array& params, bool fHelp)
         for (map<uint256, CWalletTx>::iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             CWalletTx* wtx = &((*it).second);
-            txByTime.insert(make_pair(wtx->GetTxTime(), TxPair(wtx, 0)));
+            txByTime.insert(make_pair(wtx->GetTxTime(), TxPair(wtx, (CAccountingEntry*)0)));
         }
         list<CAccountingEntry> acentries;
         walletdb.ListAccountCreditDebit(strAccount, acentries);
         foreach(CAccountingEntry& entry, acentries)
         {
-            txByTime.insert(make_pair(entry.nTime, TxPair(0, &entry)));
+            txByTime.insert(make_pair(entry.nTime, TxPair((CWalletTx*)0, &entry)));
         }
 
         // Now: iterate backwards until we have nCount items to return:
@@ -1895,7 +1896,7 @@ void ThreadRPCServer2(void* parg)
         map<string, string> mapHeaders;
         string strRequest;
 
-        boost::thread api_caller(ReadHTTP, ref(stream), ref(mapHeaders), ref(strRequest));
+        boost::thread api_caller(ReadHTTP, boost::ref(stream), boost::ref(mapHeaders), boost::ref(strRequest));
         if (!api_caller.timed_join(boost::posix_time::seconds(GetArg("-rpctimeout", 30))))
         {   // Timed out:
             acceptor.cancel();
@@ -2121,8 +2122,6 @@ int CommandLineRPC(int argc, char *argv[])
         if (strMethod == "listtransactions"       && n > 1) ConvertTo<boost::int64_t>(params[1]);
         if (strMethod == "listaccounts"           && n > 0) ConvertTo<boost::int64_t>(params[0]);
 
-        if (strMethod == "listreceivedbylabel"    && n > 0) ConvertTo<boost::int64_t>(params[0]);
-        if (strMethod == "listreceivedbylabel"    && n > 1) ConvertTo<bool>(params[1]);
         if (strMethod == "monitortx"              && n > 1) ConvertTo<bool>(params[1]);
         if (strMethod == "monitorblocks"          && n > 1) ConvertTo<bool>(params[1]);
         if (strMethod == "getblock"               && n > 0) ConvertTo<boost::int64_t>(params[0]);

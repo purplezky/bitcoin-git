@@ -1737,7 +1737,17 @@ bool CBlock::AcceptBlock()
 
     // Check proof of work
     if (nBits != GetNextWorkRequired(pindexPrev))
-        return error("AcceptBlock() : incorrect proof of work");
+    {
+        if (fTestNet)
+        { // TestNet: accept blocks computed with higher difficulty
+            uint256 target = CBigNum().SetCompact(GetNextWorkRequired(pindexPrev)).getuint256();
+            uint256 actual = CBigNum().SetCompact(nBits).getuint256();
+            if (actual < target)
+                return error("AcceptBlock() : incorrect proof of work");
+        }
+        else
+            return error("AcceptBlock() : incorrect proof of work");
+    }
 
     // Check timestamp against prev
     if (GetBlockTime() <= pindexPrev->GetMedianTimePast())

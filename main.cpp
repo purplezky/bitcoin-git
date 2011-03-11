@@ -1106,12 +1106,28 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast)
     if (pindexLast == NULL)
         return bnProofOfWorkLimit.GetCompact();
 
-    // -testnet only: allow setting difficulty on the command-line
+    // -testnet only: allow setting difficulty-after-block-N on the command-line
+    // Syntax:  -testnetdifficulty=1000:1.0
     if (fTestNet && mapArgs.count("-testnetdifficulty"))
     {
-        double difficulty = atof(mapArgs["-testnetdifficulty"].c_str());
-        if (difficulty > 0.0)
+        int nStartHeight = 0;
+        double difficulty = 0.0;
+
+        vector<string> vString;
+        boost::split(vString, mapArgs["-testnetdifficulty"], boost::is_any_of(":"));
+        if (vString.size() == 2)
         {
+            nStartHeight = atoi(vString[0].c_str());
+            difficulty = atof(vString[1].c_str());
+            if (difficulty <= 0.0 || nStartHeight <= 0)
+            {
+                printf("Error: ignoring invalid -testnetdifficult=HEIGHT:difficulty\n");
+                nStartHeight = 0;
+            }
+        }
+
+        if (nStartHeight > 1 && nStartHeight <= pindexLast->nHeight)
+        {   // Override default difficulty calculation.
             CBigNum bnDifficulty = bnProofOfWorkLimit;
             bnDifficulty *= CBigNum(int64(difficulty*0x10000));
             bnDifficulty /= CBigNum(0x10000);

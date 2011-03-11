@@ -1106,6 +1106,19 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast)
     if (pindexLast == NULL)
         return bnProofOfWorkLimit.GetCompact();
 
+    // -testnet only: allow setting difficulty on the command-line
+    if (fTestNet && mapArgs.count("-testnetdifficulty"))
+    {
+        double difficulty = atof(mapArgs["-testnetdifficulty"].c_str());
+        if (difficulty > 0.0)
+        {
+            CBigNum bnDifficulty = bnProofOfWorkLimit;
+            bnDifficulty *= CBigNum(int64(difficulty*0x10000));
+            bnDifficulty /= CBigNum(0x10000);
+            return bnDifficulty.GetCompact();
+        }
+    }
+
     // Only change once per interval
     if ((pindexLast->nHeight+1) % nInterval != 0)
         return pindexLast->nBits;

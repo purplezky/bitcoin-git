@@ -219,9 +219,6 @@ public:
     void Leave() { mutex.unlock(); }
     bool TryEnter() { return mutex.try_lock(); }
 #endif
-public:
-    const char* pszFile;
-    int nLine;
 };
 
 // Automatically leave critical section when leaving block, needed for exception safety
@@ -229,9 +226,23 @@ class CCriticalBlock
 {
 protected:
     CCriticalSection* pcs;
+    const char* pszName;
+    const char* pszFunc;
 public:
-    CCriticalBlock(CCriticalSection& csIn) { pcs = &csIn; pcs->Enter(); }
-    ~CCriticalBlock() { pcs->Leave(); }
+    CCriticalBlock(CCriticalSection& csIn, const char* pszNameIn, const char* pszFuncIn)
+    {
+        pszName = pszNameIn;
+        pszFunc = pszFuncIn;
+        pcs = &csIn;
+        if (fDebug) printf("W:%s:%d:%s\n", pszName, pthread_self(), pszFunc);
+        pcs->Enter();
+        if (fDebug) printf("L:%s:%d:%s\n", pszName, pthread_self(), pszFunc);
+    }
+    ~CCriticalBlock()
+    {
+        pcs->Leave();
+        if (fDebug) printf("U:%s:%d:%s\n", pszName, pthread_self(), pszFunc);
+    }
 };
 
 // WARNING: This will catch continue and break!
@@ -239,22 +250,37 @@ public:
 // I'd rather be careful than suffer the other more error prone syntax.
 // The compiler will optimise away all this loop junk.
 #define CRITICAL_BLOCK(cs)     \
-    for (bool fcriticalblockonce=true; fcriticalblockonce; assert(("break caught by CRITICAL_BLOCK!", !fcriticalblockonce)), fcriticalblockonce=false)  \
-    for (CCriticalBlock criticalblock(cs); fcriticalblockonce && (cs.pszFile=__FILE__, cs.nLine=__LINE__, true); fcriticalblockonce=false, cs.pszFile=NULL, cs.nLine=0)
+    for (bool fcriticalblockonce=true; fcriticalblockonce; assert(("break caught by CRITICAL_BLOCK!", !fcriticalblockonce)), fcriticalblockonce=false) \
+        for (CCriticalBlock criticalblock(cs, #cs, __func__); fcriticalblockonce; fcriticalblockonce=false)
 
 class CTryCriticalBlock
 {
 protected:
     CCriticalSection* pcs;
+    const char* pszName;
+    const char* pszFunc;
 public:
-    CTryCriticalBlock(CCriticalSection& csIn) { pcs = (csIn.TryEnter() ? &csIn : NULL); }
-    ~CTryCriticalBlock() { if (pcs) pcs->Leave(); }
+    CTryCriticalBlock(CCriticalSection& csIn, const char* pszNameIn, const char* pszFuncIn)
+    {
+        pszName = pszNameIn;
+        pszFunc = pszFuncIn;
+        pcs = (csIn.TryEnter() ? &csIn : NULL);
+        if (fDebug && pcs) printf("L:%s:%d:%s\n", pszName, pthread_self(), pszFunc);
+    }
+    ~CTryCriticalBlock()
+    {
+        if (pcs)
+        {
+            pcs->Leave();
+            if (fDebug) printf("U:%s:%d:%s\n", pszName, pthread_self(), pszFunc);
+        }
+    }
     bool Entered() { return pcs != NULL; }
 };
 
 #define TRY_CRITICAL_BLOCK(cs)     \
-    for (bool fcriticalblockonce=true; fcriticalblockonce; assert(("break caught by TRY_CRITICAL_BLOCK!", !fcriticalblockonce)), fcriticalblockonce=false)  \
-    for (CTryCriticalBlock criticalblock(cs); fcriticalblockonce && (fcriticalblockonce = criticalblock.Entered()) && (cs.pszFile=__FILE__, cs.nLine=__LINE__, true); fcriticalblockonce=false, cs.pszFile=NULL, cs.nLine=0)
+    for (bool fcriticalblockonce=true; fcriticalblockonce; assert(("break caught by TRY_CRITICAL_BLOCK!", !fcriticalblockonce)), fcriticalblockonce=false) \
+        for (CTryCriticalBlock criticalblock(cs, #cs, __func__); fcriticalblockonce && (fcriticalblockonce = criticalblock.Entered()); fcriticalblockonce=false)
 
 
 

@@ -49,7 +49,8 @@ def main():
   waiting = defaultdict(lambda: defaultdict(int))
   locked = defaultdict(lambda: defaultdict(int))
 
-  for line in open(debuglog):
+  fp = open(debuglog)
+  for (line_number, line) in enumerate(fp):
     if line[0:2] == 'W:':
       (cs,thread,func) = (line[2:]).strip().split(":")
       waiting[thread][cs] += 1
@@ -62,9 +63,12 @@ def main():
       p = (chain[thread][0], cs)
       if p not in pairs:
         pairs.add(p)
-        callstacks[p].add(str(callstack))
+        callstacks[p].add(str(callstack[thread]))
     elif line[0:2] == 'U:':
       (cs,thread,func) = (line[2:]).strip().split(":")
+      if locked[thread][cs] == 0 or len(chain[thread]) == 0 or len(callstack[thread]) == 0:
+        print("Unlock missing lock? line %d (%s)"%(line_number, line))
+        continue
       locked[thread][cs] -= 1
       chains[thread].add(str(chain[thread]))
       chain[thread].pop()

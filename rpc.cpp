@@ -369,6 +369,7 @@ Value getaccountaddress(const Array& params, bool fHelp)
 
     Value ret;
 
+    CRITICAL_BLOCK(cs_main)
     CRITICAL_BLOCK(cs_mapWallet)
     {
         ret = GetAccountAddress(strAccount);
